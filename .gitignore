@@ -42,10 +42,6 @@ bower_components/
 *.dockerignore
 docker-compose.override.yml
 
-# Kubernetes
-*.yaml
-*.yml
-
 # OS files
 .DS_Store
 Thumbs.db
