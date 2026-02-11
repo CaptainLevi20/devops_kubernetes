@@ -1,0 +1,12 @@
+{
+  "name": "log-output-reader",
+  "version": "1.0.0",
+  "description": "Log output reader - reads from shared file and serves HTTP",
+  "main": "index-reader.js",
+  "scripts": {
+    "start": "node index-reader.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
