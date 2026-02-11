@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ping-pong-local
+  namespace: exercises
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ping-pong
+      variant: local
+  template:
+    metadata:
+      labels:
+        app: ping-pong
+        variant: local
+    spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: postgres:15
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres -p 5432 -U ${POSTGRES_USER}; do
+                echo "waiting for postgres..."
+                sleep 2
+              done
+        - name: copy-code
+          image: busybox
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              cp -a /src/. /app/
+          volumeMounts:
+            - name: app-src
+              mountPath: /src
+            - name: app-code
+              mountPath: /app
+      containers:
+        - name: ping-pong
+          image: node:18-bullseye
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              cd /app
+              npm_config_package_lock=false npm install --production --no-audit --no-fund
+              node index.js
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PGHOST
+              value: "postgres"
+            - name: PGPORT
+              value: "5432"
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: app-code
+              mountPath: /app
+            - name: node-modules
+              mountPath: /app/node_modules
+      volumes:
+        - name: app-src
+          configMap:
+            name: ping-pong-code
+        - name: app-code
+          emptyDir: {}
+        - name: node-modules
+          emptyDir: {}
