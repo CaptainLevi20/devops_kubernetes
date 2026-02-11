@@ -1,0 +1,67 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-db-backup
+  namespace: project
+spec:
+  schedule: "0 2 * * *" # daily at 02:00 UTC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: backup
+              image: google/cloud-sdk:slim
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: todo-backend-secret
+                      key: POSTGRES_USER
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: todo-backend-secret
+                      key: POSTGRES_PASSWORD
+                - name: POSTGRES_DB
+                  valueFrom:
+                    configMapKeyRef:
+                      name: todo-backend-config
+                      key: POSTGRES_DB
+                - name: GCS_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: gcs-backup-secret
+                      key: bucket
+                - name: GCS_PREFIX
+                  valueFrom:
+                    secretKeyRef:
+                      name: gcs-backup-secret
+                      key: prefix
+                - name: GOOGLE_APPLICATION_CREDENTIALS
+                  value: /secrets/gcs/key.json
+              volumeMounts:
+                - name: gcs-credentials
+                  mountPath: /secrets/gcs
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  apt-get update -qq \
+                    && apt-get install -y -qq postgresql-client \
+                    && export PGPASSWORD="$POSTGRES_PASSWORD"
+                  TIMESTAMP=$(date -u +%Y-%m-%dT%H%M%SZ)
+                  FNAME="/tmp/${POSTGRES_DB}-${TIMESTAMP}.dump"
+                  pg_dump -h postgres -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc -f "$FNAME"
+                  gsutil cp "$FNAME" "gs://${GCS_BUCKET}/${GCS_PREFIX:-backups}/${POSTGRES_DB}-${TIMESTAMP}.dump"
+                  rm -f "$FNAME"
+          restartPolicy: OnFailure
+          volumes:
+            - name: gcs-credentials
+              secret:
+                secretName: gcs-credentials

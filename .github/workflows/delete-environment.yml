@@ -2,8 +2,6 @@ name: Delete branch environment
 
 on:
   delete:
-    types: [deleted]
-
 jobs:
   delete-environment:
     runs-on: ubuntu-latest
