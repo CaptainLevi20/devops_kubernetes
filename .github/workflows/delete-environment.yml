@@ -1,0 +1,48 @@
+name: Delete branch environment
+
+on:
+  delete:
+    types: [deleted]
+
+jobs:
+  delete-environment:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: 'none'
+    steps:
+      - name: Set branch name
+        id: set_branch
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            BRANCH=${GITHUB_REF#refs/heads/}
+          else
+            echo "Not a branch ref: ${GITHUB_REF}"; exit 1
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+
+      - name: Skip deletion for main
+        if: ${{ steps.set_branch.outputs.branch == 'main' }}
+        run: |
+          echo "Branch is 'main' — not deleting namespace 'project'.";
+
+      - name: Authenticate to GCP
+        if: ${{ steps.set_branch.outputs.branch != 'main' }}
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Get GKE credentials
+        if: ${{ steps.set_branch.outputs.branch != 'main' }}
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_ZONE }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Delete namespace for branch
+        if: ${{ steps.set_branch.outputs.branch != 'main' }}
+        env:
+          BRANCH: ${{ steps.set_branch.outputs.branch }}
+        run: |
+          echo "Deleting namespace: $BRANCH"
+          kubectl delete namespace "$BRANCH" --wait --ignore-not-found

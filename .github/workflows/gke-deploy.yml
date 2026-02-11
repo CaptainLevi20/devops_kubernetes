@@ -1,0 +1,136 @@
+name: GKE deploy per-branch
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set branch and namespace
+        id: vars
+        run: |
+          if [[ "${GITHUB_REF}" == refs/heads/* ]]; then
+            BRANCH=${GITHUB_REF#refs/heads/}
+          else
+            echo "Not a branch ref: ${GITHUB_REF}"; exit 1
+          fi
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+          if [[ "$BRANCH" == "main" ]]; then
+            echo "namespace=project" >> $GITHUB_OUTPUT
+          else
+            echo "namespace=$BRANCH" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./part3/3.5
+          push: true
+          tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-frontend:${{ github.sha }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./part3/3.5/todo-backend
+          push: true
+          tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-backend:${{ github.sha }}
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: ${{ secrets.GKE_CLUSTER }}
+          location: ${{ secrets.GKE_ZONE }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Patch namespace and deploy with Kustomize
+        env:
+          NAMESPACE: ${{ steps.vars.outputs.namespace }}
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "Deploying to namespace: $NAMESPACE"
+          sed -i "s/^name:.*/name: $NAMESPACE/" part3/3.5/overlays/gke/namespace.yaml
+          kubectl apply -k part3/3.5/overlays/gke
+          kubectl set image deployment/todo-app todo-app=gcr.io/$PROJECT_ID/todo-frontend:${{ github.sha }} -n $NAMESPACE
+          kubectl set image deployment/todo-backend todo-backend=gcr.io/$PROJECT_ID/todo-backend:${{ github.sha }} -n $NAMESPACE
+          kubectl rollout status deployment/todo-app -n $NAMESPACE --timeout=120s
+          kubectl rollout status deployment/todo-backend -n $NAMESPACE --timeout=120s
+
+      - name: Done
+        run: echo "Deployed branch ${{ steps.vars.outputs.branch }} to namespace ${{ steps.vars.outputs.namespace }}"
+name: Build and deploy to GKE
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up GCloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_email: ${{ secrets.GCP_SA_EMAIL }}
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker --quiet
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./part3/3.5
+          push: true
+          tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-frontend:${{ github.sha }}
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./part3/3.5/todo-backend
+          push: true
+          tags: gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-backend:${{ github.sha }}
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER }} --zone ${{ secrets.GKE_ZONE }} --project ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Apply kustomize overlay
+        run: |
+          kustomize build part3/3.5/overlays/gke | kubectl apply -f -
+
+      - name: Update deployments to new image
+        run: |
+          kubectl -n project set image deployment/todo-app todo-app=gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-frontend:${{ github.sha }}
+          kubectl -n project set image deployment/todo-backend todo-backend=gcr.io/${{ secrets.GCP_PROJECT_ID }}/todo-backend:${{ github.sha }}
