@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-output
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-output
+  template:
+    metadata:
+      labels:
+        app: log-output
+    spec:
+      volumes:
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: shared-data-pvc
+      containers:
+        # Writer container - generates and writes logs
+        - name: writer
+          image: captainlevi20/log-output-writer:1.1
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
+        
+        # Reader container - serves logs over HTTP
+        - name: reader
+          image: captainlevi20/log-output-reader:1.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
