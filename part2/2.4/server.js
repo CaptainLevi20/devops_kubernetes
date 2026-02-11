@@ -356,9 +356,9 @@ app.get('/', (req, res) => {
           todos.forEach(todo => {
             const li = document.createElement('li');
             li.className = 'todo-item';
-              li.innerHTML = '<input type="checkbox" ' + (todo.completed ? 'checked' : '') + ' onchange="toggleTodo(' + todo.id + ')">' +
-                '<span class="todo-text">' + todo.text + '</span>' +
-                '<button class="delete-btn" onclick="deleteTodo(' + todo.id + ')">Delete</button>';
+            li.innerHTML = '<input type="checkbox" ' + (todo.completed ? 'checked' : '') + ' onchange="toggleTodo(' + todo.id + ')">' +
+                           '<span class="todo-text">' + todo.text + '</span>' +
+                           '<button class="delete-btn" onclick="deleteTodo(' + todo.id + ')">Delete</button>';
             list.appendChild(li);
           });
         }
