@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-output
+  namespace: exercises
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-output
+  template:
+    metadata:
+      labels:
+        app: log-output
+    spec:
+      volumes:
+        - name: shared-storage
+          persistentVolumeClaim:
+            claimName: shared-data-pvc
+        - name: config-volume
+          configMap:
+            name: log-output-config
+            items:
+              - key: information.txt
+                path: information.txt
+      containers:
+        # Writer container - generates and writes logs
+        - name: writer
+          image: captainlevi20/log-output-writer:1.1
+          imagePullPolicy: Always
+          command:
+            - "/bin/sh"
+            - "-c"
+            - "cat /etc/config/information.txt || true; echo \"$MESSAGE\" || true; exec npm start"
+          env:
+            - name: MESSAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: log-output-config
+                  key: MESSAGE
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+        
+        # Reader container - serves logs over HTTP
+        - name: reader
+          image: captainlevi20/log-output-reader:1.0
+          imagePullPolicy: Always
+          command:
+            - "/bin/sh"
+            - "-c"
+            - "cat /etc/config/information.txt || true; echo \"$MESSAGE\" || true; exec npm start"
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MESSAGE
+              valueFrom:
+                configMapKeyRef:
+                  name: log-output-config
+                  key: MESSAGE
+          volumeMounts:
+            - name: shared-storage
+              mountPath: /shared
+            - name: config-volume
+              mountPath: /etc/config
+              readOnly: true
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - |
+                  if [ -f /shared/output.log ] && [ "$(wc -l < /shared/output.log 2>/dev/null || echo 0)" -gt 0 ]; then
+                    exit 0
+                  else
+                    exit 1
+                  fi
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3

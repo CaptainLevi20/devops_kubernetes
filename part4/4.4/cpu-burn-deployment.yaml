@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-burn
+  namespace: exercises
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: cpu-burn
+  template:
+    metadata:
+      labels:
+        app: cpu-burn
+    spec:
+      containers:
+      - name: burn
+        image: busybox
+        resources:
+          limits:
+            cpu: "1"
+        command:
+        - sh
+        - -c
+        - "while true; do yes > /dev/null; done"
