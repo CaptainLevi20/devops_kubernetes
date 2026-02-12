@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: pingpong-canary
+  namespace: exercises
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pingpong
+  template:
+    metadata:
+      labels:
+        app: pingpong
+    spec:
+      containers:
+      - name: pingpong
+        image: nginx:stable
+        ports:
+        - containerPort: 80
+  strategy:
+    canary:
+      steps:
+      - analysis:
+          args:
+          - name: namespace
+            value: exercises
+          - name: threshold
+            value: "1.0"
+          templates:
+          - templateName: pingpong-cpu-precheck
+      - setWeight: 20
+      - pause:
+          duration: 1m
+      - analysis:
+          args:
+          - name: namespace
+            value: exercises
+          - name: threshold
+            value: "1.0"
+          templates:
+          - templateName: pingpong-cpu-check
+      - setWeight: 100
