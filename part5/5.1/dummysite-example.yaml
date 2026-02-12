@@ -1,0 +1,6 @@
+apiVersion: dummy.example.com/v1alpha1
+kind: DummySite
+metadata:
+  name: example
+spec:
+  website_url: "https://example.com/"
