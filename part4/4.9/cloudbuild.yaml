@@ -1,0 +1,51 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: 'part3/3.5'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/todo-frontend:$SHORT_SHA', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    dir: 'part3/3.5/todo-backend'
+    args: ['build', '-t', 'gcr.io/$PROJECT_ID/todo-backend:$SHORT_SHA', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/todo-frontend:$SHORT_SHA']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'gcr.io/$PROJECT_ID/todo-backend:$SHORT_SHA']
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        gcloud container clusters get-credentials "$$_CLUSTER_NAME" --zone "$$_CLUSTER_ZONE" --project "$PROJECT_ID"
+  - name: 'gcr.io/cloud-builders/kubectl'
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        if [ "$_BRANCH_NAME" = "main" ]; then
+          NAMESPACE=project
+        else
+          NAMESPACE="$_BRANCH_NAME"
+        fi
+        # write namespace into overlay namespace.yaml
+        sed -i "s/^name:.*/name: ${NAMESPACE}/" part3/3.5/overlays/gke/namespace.yaml
+        kubectl apply -k part3/3.5/overlays/gke
+  - name: 'gcr.io/cloud-builders/kubectl'
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        if [ "$_BRANCH_NAME" = "main" ]; then
+          NAMESPACE=project
+        else
+          NAMESPACE="$_BRANCH_NAME"
+        fi
+        kubectl set image deployment/todo-app todo-app=gcr.io/$PROJECT_ID/todo-frontend:$SHORT_SHA -n ${NAMESPACE}
+        kubectl set image deployment/todo-backend todo-backend=gcr.io/$PROJECT_ID/todo-backend:$SHORT_SHA -n ${NAMESPACE}
+        kubectl rollout status deployment/todo-app -n ${NAMESPACE} --timeout=120s
+        kubectl rollout status deployment/todo-backend -n ${NAMESPACE} --timeout=120s
+
+substitutions:
+  _CLUSTER_NAME: ""
+  _CLUSTER_ZONE: ""
+  _BRANCH_NAME: "main"
+
+timeout: 1200s

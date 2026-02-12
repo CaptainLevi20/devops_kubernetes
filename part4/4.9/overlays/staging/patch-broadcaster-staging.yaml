@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster
+spec:
+  template:
+    spec:
+      containers:
+        - name: broadcaster
+          env:
+            - name: EXTERNAL_URL
+              value: ""
+            - name: SKIP_FORWARD
+              value: "true"
+          # reduce replicas in staging
+          # this patch does not change replicas at top-level; it's safer to set via annotation/replicas

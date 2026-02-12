@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-db-backup
+spec:
+  schedule: "0 2 * * *" # daily at 02:00
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: postgres:15-alpine
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: todo-backend-secret
+                      key: POSTGRES_PASSWORD
+                - name: POSTGRES_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: todo-backend-secret
+                      key: POSTGRES_USER
+                - name: POSTGRES_DB
+                  valueFrom:
+                    configMapKeyRef:
+                      name: todo-backend-config
+                      key: POSTGRES_DB
+                - name: GCS_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: gcs-backup-secret
+                      key: bucket
+              command:
+                - sh
+                - -c
+                - |
+                  TIMESTAMP=$(date +%F)
+                  FNAME=/backups/${POSTGRES_DB}-$TIMESTAMP.dump
+                  pg_dump -h postgres -U "$POSTGRES_USER" -Fc -f "$FNAME" "$POSTGRES_DB"
+                  # upload step expects credentials configured externally (secret with gcloud/gsutil);
+                  # example: gsutil cp "$FNAME" "gs://${GCS_BUCKET}/backups/"
+          volumeMounts: []

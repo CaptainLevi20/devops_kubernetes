@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster
+spec:
+  template:
+    spec:
+      containers:
+        - name: broadcaster
+          env:
+            # EXTERNAL_URL should be provided via a Secret named 'broadcaster-external'
+            - name: EXTERNAL_URL
+              valueFrom:
+                secretKeyRef:
+                  name: broadcaster-external
+                  key: EXTERNAL_URL
+            - name: SKIP_FORWARD
+              value: "false"

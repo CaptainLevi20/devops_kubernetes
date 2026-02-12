@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: broadcaster
+  labels:
+    app: broadcaster
+spec:
+  replicas: 6
+  selector:
+    matchLabels:
+      app: broadcaster
+  template:
+    metadata:
+      labels:
+        app: broadcaster
+    spec:
+      containers:
+      - name: broadcaster
+        image: broadcaster:latest
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: NATS_URL
+          value: "nats://nats:4222"
+        - name: NATS_SUBJECT
+          value: "todos.events"
+        - name: EXTERNAL_URL
+          value: "http://example.com/hooks" # override with real URL via k8s manifest/secret
+        - name: PORT
+          value: "3000"
+        ports:
+        - containerPort: 3000
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
