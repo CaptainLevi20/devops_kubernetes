@@ -1,0 +1,13 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1beta2
+kind: Kustomization
+metadata:
+  name: main
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  path: "part4/4.8/todo-backend"
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: repo
+  validation: client
