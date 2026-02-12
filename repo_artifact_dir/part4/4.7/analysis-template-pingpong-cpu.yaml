@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: pingpong-cpu-check
+spec:
+  # template arguments: namespace to check and threshold in CPU cores
+  args:
+  - name: namespace
+  - name: threshold
+    value: "1.0"
+  metrics:
+  - name: namespace-cpu
+    # run every 1 minute, total of 5 samples => 5 minutes observation window
+    interval: 1m
+    count: 5
+    # use the provided threshold argument; succeed if the observed cpu sum stays <= threshold
+    successCondition: result <= {{args.threshold}}
+    failureCondition: result > {{args.threshold}}
+    provider:
+      prometheus:
+        # in-cluster prometheus address; adjust if different in your cluster
+        address: http://prometheus.monitoring.svc:9090
+        # sum of CPU usage rate (cores) for all containers in the target namespace
+        query: |
+          sum(rate(container_cpu_usage_seconds_total{namespace="{{args.namespace}}"}[5m]))

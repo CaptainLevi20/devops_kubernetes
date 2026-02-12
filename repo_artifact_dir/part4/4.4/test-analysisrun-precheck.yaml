@@ -1,0 +1,13 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisRun
+metadata:
+  generateName: test-cpu-precheck-
+  namespace: exercises
+spec:
+  args:
+  - name: namespace
+    value: exercises
+  - name: threshold
+    value: "1.0"
+  templateName: pingpong-cpu-precheck
+  clusterScope: true

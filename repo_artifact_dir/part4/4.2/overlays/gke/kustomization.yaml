@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+ - ../../base
+ - namespace.yaml
+images:
+- name: todo-frontend
+  newName: gcr.io/PROJECT_ID/todo-frontend
+  newTag: latest
+- name: todo-backend
+  newName: gcr.io/PROJECT_ID/todo-backend
+  newTag: latest
+ 

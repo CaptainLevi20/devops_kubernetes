@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-output-config
+  namespace: exercises
+data:
+  MESSAGE: "Hello from ConfigMap"
+  information.txt: |
+    This is information.txt served from a ConfigMap.
+    The application mounts this file at /etc/config/information.txt
+    and should print its contents along with the MESSAGE env var.

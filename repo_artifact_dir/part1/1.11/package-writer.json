@@ -1,0 +1,12 @@
+{
+  "name": "log-output-writer",
+  "version": "1.0.0",
+  "description": "Log output writer - writes to shared file",
+  "main": "index-writer.js",
+  "scripts": {
+    "start": "node index-writer.js"
+  },
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}

@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: create-random-todo
+  namespace: project
+spec:
+  schedule: "0 * * * *" # cada hora en el minuto 0
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: create-random-todo
+              image: curlimages/curl:8.2.1
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -eu
+                  # Obtener headers sin seguir redirecciones y extraer Location
+                  location=$(curl -s -D - -o /dev/null --max-redirs 0 https://en.wikipedia.org/wiki/Special:Random \
+                    | awk '/^[Ll]ocation:/{print $2}' | tr -d '\r')
+                  if [ -z "$location" ]; then
+                    echo "No se obtuvo Location; abortando"
+                    exit 0
+                  fi
+                  text="Read $location"
+                  json=$(printf '%s' "{\"text\":\"%s\"}" "$text")
+                  # POST al servicio backend dentro del cluster
+                  curl -s -X POST -H 'Content-Type: application/json' -d "$json" http://todo-backend-service:3000/todos || true
+          # tolerancias y límites mínimos
